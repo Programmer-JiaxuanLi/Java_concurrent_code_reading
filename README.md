@@ -6,8 +6,8 @@
 
 1. [ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789](https://segmentfault.com/a/1190000016058789)。
 
-https://github.com/<OWNER>/<REPOSITORY>/workflows/<WORKFLOW_NAME>/badge.svg
-
+ 
+ 
  
 ![https://img.shields.io/badge/java-source-red](https://img.shields.io/badge/java-source-red) ![https://img.shields.io/badge/java-concurrent-green](https://img.shields.io/badge/java-concurrent-green)  ![https://img.shields.io/badge/Java-Self--study-blue](https://img.shields.io/badge/Java-Self--study-blue) 
 
