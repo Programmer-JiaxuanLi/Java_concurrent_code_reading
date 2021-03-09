@@ -12,60 +12,12 @@
 
 <h2>Reentrantlock</h2>
 
-<h4>1 接口对比</h4>
 
-<table>
-  <thead>
-    <tr>
-      <th>Lock 接口</th>
-      <th>ReentrantLock 实现</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>lock()</td>
-      <td>sync.lock()</td>
-    </tr>
-    <tr>
-      <td>lockInterruptibly()</td>
-      <td>sync.acquireInterruptibly(1)</td>
-    </tr>
-    <tr>
-      <td>tryLock()</td>
-      <td>sync.nonfairTryAcquire(1)</td>
-    </tr>
-    <tr>
-      <td>
-        tryLock(long time, TimeUnit unit)
-      </td>
-      <td>
-        sync.tryAcquireNanos(1, unit.toNanos(timeout))
-      </td>
-    </tr>
-    <tr>
-      <td>
-        unlock()
-      </td>
-      <td>
-        sync.release(1)
-      </td>
-    </tr>
-    <tr>
-      <td>
-        newCondition()
-      </td>
-      <td>
-        sync.newCondition()
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-<h4>2 核心变量</h4>
+<h4>1 核心变量</h4>
 private final Sync sync;
 ReentrantLock只有个sync属性，这个属性提供了所有的实现，我们上面介绍ReentrantLock对Lock接口的实现的时候就说到，它对所有的Lock方法的实现都调用了sync的方法，这个sync就是ReentrantLock的属性，它继承了AQS.
 
-<h4>构造函数</h4>
+<h4>2 构造函数</h4>
 
  ```
 public ReentrantLock() {
@@ -78,7 +30,7 @@ public ReentrantLock(boolean fair) {
 
 **含参构造函数用于指定是否为公平锁，无参默认为启用非公平锁**。公平锁的优点在于等待锁的线程不会饿死，缺点是整体吞吐率相对非公平锁比较低，等待队列中除了第一个线程都会被阻塞，CPU唤醒阻塞线程的开销比非公平锁大。非公平锁是多个线程加锁时直接尝试获取锁，获取不到才会到等待队列的队尾等待。但如果此时锁刚好可用，那么这个线程可以无需阻塞直接获取到锁，所以非公平锁可以减少唤起线程的开销，整体的吞吐效率高。
 
-<h4>3 锁子的获取</h4>
+<h4>3 锁的获取</h4>
 
 我们先以公平锁为例，来分析锁的获取
 ```
@@ -147,7 +99,7 @@ protected final boolean tryAcquire(int acquires) {
 其实获取锁中的核心方法就是通过 compareAndSetState(0, acquires) 将锁的state状态改写，因为是cas操作，因此可以保证只有一个线程能成功，成功之后，再将
 拥有锁的线程改写为当前线程。对于可重入锁，则对比获取锁的线程是不是当前线程，是就直接获取。
 
-<h4>3.1 addWaiter(Node mode)函数</h4>
+<h4>3.2 addWaiter(Node mode)函数</h4>
 
 执行到此方法, 尝试获取锁失败, 就要将当前线程包装成Node，加到等待锁的队列中去, 因为是FIFO队列, 所以要加在队尾。
 ```
