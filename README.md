@@ -66,12 +66,14 @@ private final Sync sync;
 ReentrantLock只有个sync属性，这个属性提供了所有的实现，我们上面介绍ReentrantLock对Lock接口的实现的时候就说到，它对所有的Lock方法的实现都调用了sync的方法，这个sync就是ReentrantLock的属性，它继承了AQS.
 
 <h4>构造函数</h4>
+ ```java
 public ReentrantLock() {
     sync = new NonfairSync();
 }
 public ReentrantLock(boolean fair) {
     sync = fair ? new FairSync() : new NonfairSync();
 }
+ ```
 含参构造函数用于指定是否为公平锁，无参默认为启用非公平锁。
 原因是股票所
 
