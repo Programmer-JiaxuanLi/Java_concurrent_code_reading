@@ -115,12 +115,12 @@ tryAcquire(arg)函数的主要逻辑是：
 protected final boolean tryAcquire(int acquires) {
     final Thread current = Thread.currentThread();
     int c = getState(); 
-    //在独占锁中，如果c==0 说明当前锁是avaiable的,可以尝试获取锁 因为是实现公平锁, 所以在抢占之前首先看看队列中有线程自己前面的Node，如果没有人在排队, 则通过CAS方式获取锁
+    //在独占锁中，如果c==0 说明当前锁还没有被占用, 可以尝试获取锁 因为是实现公平锁, 所以在抢占之前首先看看队列中有线程自己前面的Node，如果没有人在排队, 则通过CAS方式获取锁
     if (c == 0) {
         if (!hasQueuedPredecessors() && compareAndSetState(0, acquires))
-        // !hasQueuedPredecessors()
+        // !hasQueuedPredecessors()判断自己之前是否还有节点等待，如果没有cas获取锁
         {
-            setExclusiveOwnerThread(current); // 将当前线程设置为占用锁的线程
+            setExclusiveOwnerThread(current); // 在AQS中，通过exclusiveOwnerThread属性记录了当前拥有锁的线程, setExclusiveOwnerThread(current)将拥有锁的线程设置为当前线程
             return true;
         }
     }
@@ -130,6 +130,7 @@ protected final boolean tryAcquire(int acquires) {
         int nextc = c + acquires;
         if (nextc < 0)
             throw new Error("Maximum lock count exceeded");
+        //此处不需要cas获取锁，因为占有锁的正是本线程，所以对state的修改是安全的
         setState(nextc);
         /* setState方法如下：
         protected final void setState(int newState) {
@@ -139,10 +140,103 @@ protected final boolean tryAcquire(int acquires) {
         return true;
     }
     
-    // 到这里说明有人占用了锁, 并且占用锁的不是当前线程, 则获取锁失败
+    // 获取锁失败
     return false;
 }
 ```
+其实获取锁中的核心方法就是通过 compareAndSetState(0, acquires) 将锁的state状态改写，因为是cas操作，因此可以保证只有一个线程能成功，成功之后，再将
+拥有锁的线程改写为当前线程。对于可重入锁，则对比获取锁的线程是不是当前线程，是就直接获取。
+
+<h4>3.1 addWaiter(Node mode)函数</h4>
+
+执行到此方法, 尝试获取锁失败, 就要将当前线程包装成Node，加到等待锁的队列中去, 因为是FIFO队列, 所以要加在队尾。
+```
+private Node addWaiter(Node mode) {
+    Node node = new Node(Thread.currentThread(), mode); //将当前线程包装成Node
+    static final Node EXCLUSIVE = null;
+    Node pred = tail;
+    // 如果队列不为空, 则用CAS方式将当前节点设为尾节点
+    if (pred != null) {
+        node.prev = pred;
+        if (compareAndSetTail(pred, node)) {
+            pred.next = node;
+            return node;
+        }
+    }
+    
+    // 代码会执行到这里, 只有两种情况:
+    //    1. 队列为空
+    //    2. CAS失败
+    // 注意, 这里是并发条件下, 所以什么都有可能发生, 尤其注意CAS失败后也会来到这里
+    enq(node); //将节点插入队列
+    return node;
+}
+```
+在这个方法中，我们首先会尝试直接入队，但是因为目前是在并发条件下，所以有可能同一时刻，有多个线程都在尝试入队，导致compareAndSetTail(pred, node)操作失败——因为有可能其他线程已经成为了新的尾节点，导致尾节点不再是我们之前看到的那个pred了。如果入队失败了，接下来我们就需要调用enq(node)方法，在该方法中我们将通过自旋+CAS的方式，确保当前节点入队。
+
+```
+private Node enq(final Node node) {
+    for (;;) {
+        Node t = tail;
+        if (t == null) {
+            // 如果是空队列, 首先进行初始化
+            if (compareAndSetHead(new Node()))
+                tail = head; // 这里仅仅是将尾节点指向dummy节点，并没有返回
+        } else {
+        // 如果队列不空，尝试将节点加到队尾
+            node.prev = t;
+            if (compareAndSetTail(t, node)) {
+                t.next = node;
+                return t;
+            }
+        }
+    }
+}
+```
+假如队列为空，我们需要先新建一个头节点，然后进入下一轮循环。在下一轮循环中，队列已经不为null了，此时才可以再将我们包装了当前线程的Node加到这个空节点后面。**此处要注意，头节点并没有储存线程信息，不代表如何线程**
+
+**在将节点储存到队列中时，会有一个很有趣的现象，叫做尾分叉，理解尾分叉是看懂遍历等待队列的关键**
+队列不空时，将节点加入队列有三步：
+```
+} else {
+// 到这里说明队列已经不是空的了, 这个时候再继续尝试将节点加到队尾
+    node.prev = t;
+    if (compareAndSetTail(t, node)) {
+        t.next = node;
+        return t
+    }
+}
+```
+1.设置node的前驱节点为当前的尾节点：node.prev = t
+2.修改tail属性，使它指向当前节点
+3.修改原来的尾节点，使它的next指向当前节点
+
+![image](https://user-images.githubusercontent.com/79728538/110553394-849f1a00-80fe-11eb-9523-05833ef53b9c.png)
+
+这三步不是原子操作，第二步是一个CAS操作，多线程环境下，只有一个线程能够成功修改tail，第二步和第三步是原子的，第二步发生后第三步才会发生.其他所有线程只能发生第一步，因此就会出现尾分叉现象：
+
+![image](https://user-images.githubusercontent.com/79728538/110553778-24f53e80-80ff-11eb-8917-8a66be296736.png)
+
+**在第二步发生时，第三步可能还没发生，但是，CAS已经操作成功，竞争已经结束，但此时原来旧的尾节点的next值可能还是null，假如有一个线程从前向后遍历这个队列就会漏掉这个尾节点，这明显不合理，但是tail已经成功修改，tail的前置节点也已经修改成功（第一步）从后向前遍历就可以遍历到所有节点**
+
+例如在后面的unparkSuccessor(Node node)方法中
+```
+private void unparkSuccessor(Node node) {
+...
+...
+    Node s = node.next;
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        for (Node t = tail; t != null && t != node; t = t.prev)
+        //从后向前遍历
+            if (t.waitStatus <= 0)
+                s = t;
+    }
+...
+...
+}
+```
+
 
 
 
