@@ -184,8 +184,13 @@ private Node enq(final Node node) {
 
 
 <h3>3.2.1 尾分叉</h3>
+
 **在将节点储存到队列中时，会有一个很有趣的现象，叫做尾分叉，理解尾分叉是看懂遍历等待队列的关键**
 队列不空时，将节点加入队列有三步：
+1.设置node的前驱节点为当前的尾节点：node.prev = t. 
+2.修改tail属性，使它指向当前节点. 
+3.修改原来的尾节点，使它的next指向当前节点. 
+
 ```
 } else {
 // 到这里说明队列已经不是空的了, 这个时候再继续尝试将节点加到队尾
@@ -196,9 +201,6 @@ private Node enq(final Node node) {
     }
 }
 ```
-1.设置node的前驱节点为当前的尾节点：node.prev = t
-2.修改tail属性，使它指向当前节点
-3.修改原来的尾节点，使它的next指向当前节点
 
 ![image](https://user-images.githubusercontent.com/79728538/110553394-849f1a00-80fe-11eb-9523-05833ef53b9c.png)
 
