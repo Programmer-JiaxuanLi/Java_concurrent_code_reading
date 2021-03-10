@@ -37,7 +37,7 @@
 &nbsp;&nbsp;&nbsp;<a href="#3.3">4.3  acquireQueued(final Node node, int arg)函数</a>  
 <a id="1"/>
 
-
+&nbsp;&nbsp;&nbsp;<a href="#4.4">4.4  selfInterrupt()函数</a>  
 
 <a id="2"/>
 
@@ -92,7 +92,9 @@ static final class Node {
 在Node类中有一个状态变量waitStatus，它表示了当前Node所代表的线程的等待锁的状态，在独占锁模式下只需要关注CANCELLED SIGNAL两种状态。这里还有一个nextWaiter属性，它在独占锁模式下永远为null，仅仅起到一个标记作用，没有实际意义。
 
 说完队列中的Node属性，我们接着说回由这些节点构成的等待队列，在AQS中的队列是一个CLH队列，它的head节点永远是一个哑结点（dummy node), 它不储存任何线程信息（某些情况下与持有锁的线程相关），因此head所指向的Node的thread属性永远是null。从头节点往后的所有节点才代表了所有等待锁的线程，因此头节点之后的节点才可以被算作等待队列。
-![image](https://user-images.githubusercontent.com/79728538/110680551-5ec95200-819e-11eb-93d6-f8262cb0da6f.png)
+![image](https://user-images.githubusercontent.com/79728538/110680551-5ec95200-819e-11eb-93d6-f8262cb0da6f.png)  
+
+<span>图片来自https://segmentfault.com/a/1190000016058789</span>
 
 再总结下图中Node的属性：
 1.thread：储存Node所代表的线程
@@ -327,32 +329,36 @@ private void setHead(Node node) {
 
 若获取锁失败就会执行shouldParkAfterFailedAcquire()函数，根据前驱节点的**waitStatus**值，判断是否应该将线程挂起。当一个线程挂起之前，他必须要确保自己的前驱节点的waitStatus为SIGNAL。
 之前我们提到了在独占锁中，只涉及到了CANCELLED和SIGNAL状态。
-CANCELLED状态表示Node所代表的当前线程已经取消了排队。
-SIGNAL状态不代表当前节点的状态，而是当前节点的下一个节点的状态，他是被后继节点设置的。当一个节点的waitStatus被置为SIGNAL，就说明它的后继节点已经被挂起了，因此在当前节点释放了锁或者放弃获取锁时，如果它的waitStatus属性为SIGNAL，它需要唤醒它的后继节点。
+1.CANCELLED状态表示Node所代表的当前线程已经取消了排队。
+2.SIGNAL状态不代表当前节点的状态，而是当前节点的下一个节点的状态，他是被后继节点设置的。当一个节点的waitStatus被置为SIGNAL，就说明它的后继节点已经被挂起了，因此在当前节点释放了锁或者放弃获取锁时，如果它的waitStatus属性为SIGNAL，它需要唤醒它的后继节点。  
 
+理解了CANCELLED和SIGNAL状态之后，我们来看shouldParkAfterFailedAcquire(）函数：
 ```
 private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
-    int ws = pred.waitStatus; // 获得前驱节点的ws
+    int ws = pred.waitStatus; // 前驱节点的ws
     if (ws == Node.SIGNAL)
-        // 前驱节点的状态已经是SIGNAL了，说明闹钟已经设了，可以直接睡了
+        // 如果前驱节点的状态是SIGNAL则直接挂起
         return true;
     if (ws > 0) {
-        // 当前节点的 ws > 0, 则为 Node.CANCELLED 说明前驱节点已经取消了等待锁(由于超时或者中断等原因)
-        // 既然前驱节点不等了, 那就继续往前找, 直到找到一个还在等待锁的节点
-        // 然后我们跨过这些不等待锁的节点, 直接排在等待锁的节点的后面 (是不是很开心!!!)
+        // 当前节点的 ws > 0, 则为 Node.CANCELLED,说明前驱节点放弃等待锁，
+        // 此时我们需要向前遍历找到一个还在等待锁的节点（ws <= 0）并且将本节点挂在这个节点后面。
         do {
             node.prev = pred = pred.prev;
         } while (pred.waitStatus > 0);
         pred.next = node;
     } else {
-        // 前驱节点的状态既不是SIGNAL，也不是CANCELLED
-        // 用CAS设置前驱节点的ws为 Node.SIGNAL，给自己定一个闹钟
+        // 如果前驱节点的状态不是SIGNAL也不是CANCELLED，用CAS设置前驱节点的ws为 Node.SIGNAL
         compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
     }
     return false;
 }
 ```
+假如上述操作都没有成功，执行到返回false，会继续回到循环中再次尝试获取锁——这是因为此时我们的前驱节点可能已经变了。假如执行成功返回true则会调用parkAndCheckInterrupt,将线程挂起, 等待被唤醒.
 
+<a id="4.4"/>
+<h3>4.4 selfInterrupt()函数</h3>
+
+该方法由AQS实现, 用于中断当前线程。在整个抢锁过程中，都是不响应中断的。假如在抢锁的过程中发生了中断, AQS会记录有没有有发生过中断，如果返回的时候发现在抢锁过程中曾经发生过中断，则在退出acquire方法之前，调用selfInterrupt自我中断一下，将这个发生在抢锁过程中的中断“推迟”到抢锁结束以后再发生。
 
 
 
