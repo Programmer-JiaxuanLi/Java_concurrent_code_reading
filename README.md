@@ -23,16 +23,18 @@
 
 <a href="#2">2. 构造函数</a>  
 
-<a href="#3">3. 锁的获取</a>  
+<a href="#3">3. 等待队列</a>  
 
-&nbsp;&nbsp;&nbsp;<a href="#3.1">3.1 tryAcquire(arg)函数</a>  
+<a href="#4">4. 锁的获取</a>  
+
+&nbsp;&nbsp;&nbsp;<a href="#3.1">4.1 tryAcquire(arg)函数</a>  
 <a id="1"/>
 
-&nbsp;&nbsp;&nbsp;<a href="#3.2">3.2 addWaiter(Node mode)函数</a>  
+&nbsp;&nbsp;&nbsp;<a href="#3.2">4.2 addWaiter(Node mode)函数</a>  
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3.2.1">3.2.1尾分叉</a>  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3.2.1">4.2.1尾分叉</a>  
 
-&nbsp;&nbsp;&nbsp;<a href="#3.3">3.3  acquireQueued(final Node node, int arg)函数</a>  
+&nbsp;&nbsp;&nbsp;<a href="#3.3">4.3  acquireQueued(final Node node, int arg)函数</a>  
 <a id="1"/>
 
 
@@ -59,7 +61,49 @@ public ReentrantLock(boolean fair) {
 **含参构造函数用于指定是否为公平锁，无参默认为启用非公平锁**。公平锁的优点在于等待锁的线程不会饿死，缺点是整体吞吐率相对非公平锁比较低，等待队列中除了第一个线程都会被阻塞，CPU唤醒阻塞线程的开销比非公平锁大。非公平锁是多个线程加锁时直接尝试获取锁，获取不到才会到等待队列的队尾等待。但如果此时锁刚好可用，那么这个线程可以无需阻塞直接获取到锁，所以非公平锁可以减少唤起线程的开销，整体的吞吐效率高。
 
 
-<h3>3 锁的获取</h3>
+<h3>3 等待队列</h3>
+在AQS中，等待队列的实现是一个双向链表，被称为sync queue，它表示所有等待锁的线程的集合，类似于synchronized里的wait set。
+
+在并发编程队列一般用于**将竞争锁失败的线程包装成某种类型的数据结构保存到等待队列中**，首先我们来队列中的节点是什么样的结构：
+```
+static final class Node {
+...
+...
+    // 节点所代表的线程
+    volatile Thread thread;
+    
+    // 双向链表，每个节点需要保存自己的前驱节点和后继节点的引用
+    volatile Node prev;
+    volatile Node next;
+
+    // 线程所处的等待锁的状态，初始化时，该值为0
+    volatile int waitStatus;
+    static final int CANCELLED =  1;
+    static final int SIGNAL    = -1;
+    static final int CONDITION = -2;
+    static final int PROPAGATE = -3;
+
+    // 该属性用于条件队列或者共享锁
+    Node nextWaiter;
+...
+...
+}
+```
+在Node类中有一个状态变量waitStatus，它表示了当前Node所代表的线程的等待锁的状态，在独占锁模式下只需要关注CANCELLED SIGNAL两种状态。这里还有一个nextWaiter属性，它在独占锁模式下永远为null，仅仅起到一个标记作用，没有实际意义。
+
+说完队列中的Node属性，我们接着说回由这些节点构成的等待队列，在AQS中的队列是一个CLH队列，它的head节点永远是一个哑结点（dummy node), 它不储存任何线程信息（某些情况下与持有锁的线程相关），因此head所指向的Node的thread属性永远是null。从头节点往后的所有节点才代表了所有等待锁的线程，因此头节点之后的节点才可以被算作等待队列。
+![image](https://user-images.githubusercontent.com/79728538/110680551-5ec95200-819e-11eb-93d6-f8262cb0da6f.png)
+
+再总结下图中Node的属性：
+1.thread：储存Node所代表的线程
+2.waitStatus：表示节点所处的等待状态，共享锁模式下只需关注三种状态：SIGNAL CANCELLED 初始态(0)
+3.prev next：节点的前驱和后继
+4.nextWaiter：进作为标记，值永远为null，表示当前处于独占锁模式
+
+
+<a id="4"/>
+
+<h3>4 锁的获取</h3>
 
 我们先以公平锁为例，来分析锁的获取
 ```
@@ -88,7 +132,7 @@ public final void acquire(int arg) {
 
 
 
-<h3>3.1 tryAcquire(arg)函数</h3>
+<h3>4.1 tryAcquire(arg)函数</h3>
 
 tryAcquire(arg)函数的主要逻辑是：
 1.如果锁没有被占用, 尝试以公平的方式获取锁
@@ -136,7 +180,7 @@ protected final boolean tryAcquire(int acquires) {
 拥有锁的线程改写为当前线程。对于可重入锁，则对比获取锁的线程是不是当前线程，是就直接获取。
 
 
-<h3>3.2 addWaiter(Node mode)函数</h3>
+<h3>4.2 addWaiter(Node mode)函数</h3>
 
 执行到此方法, 尝试获取锁失败, 就要将当前线程包装成Node，加到等待锁的队列中去, 因为是FIFO队列, 所以要加在队尾。
 ```
@@ -187,7 +231,7 @@ private Node enq(final Node node) {
 假如队列为空，我们需要先新建一个头节点，然后进入下一轮循环。在下一轮循环中，队列已经不为null了，此时才可以再将我们包装了当前线程的Node加到这个空节点后面。**此处要注意，头节点并没有储存线程信息，头节点的相关线程已经获得了同步状态，在执行相应的业务逻辑了*
 
 
-<h3>3.2.1 尾分叉</h3>
+<h3>4.2.1 尾分叉</h3>
 
 **在将节点储存到队列中时，会有一个很有趣的现象，叫做尾分叉，理解尾分叉是看懂遍历等待队列的关键**
 队列不空时，将节点加入队列有三步：
@@ -238,7 +282,7 @@ private void unparkSuccessor(Node node) {
 ```
 最后，addWaiter(Node.EXCLUSIVE)方法最终返回了代表了当前线程的Node节点。
 
-<h3>3.3 acquireQueued(final Node node, int arg)函数</h3>
+<h3>4.3 acquireQueued(final Node node, int arg)函数</h3>
 
 acquireQueued的基本逻辑是；
 (1) addWaiter 方法已经成功将包装了当前Thread的节点添加到了等待队列
@@ -279,9 +323,35 @@ private void setHead(Node node) {
     node.prev = null;
 }
 ```
-**从这段代码，我们可以很清楚的看到，一个节点在成为头节点之后，就会清除它储存的线程信息。这相当于一种变相的出队操作，其实等待队列指的是该队列里除head以外的节点，这里的setHead也不需要进行CAS操作，因为tryAcquire(arg)获取锁成功之后才会执行if里面的代码**
+**从这段代码，我们可以很清楚的看到，一个节点在成为头节点之后，就会清除它储存的线程信息。这相当于一种变相的出队操作，其实等待队列指的是该队列里除head以外的节点，这里的setHead也不需要进行CAS操作，因为tryAcquire(arg)获取锁成功之后才会执行if里面的代码，只有一个线程可以获取锁成功**
 
-若获取锁失败
+若获取锁失败就会执行shouldParkAfterFailedAcquire()函数，根据前驱节点的**waitStatus**值，判断是否应该将线程挂起。当一个线程挂起之前，他必须要确保自己的前驱节点的waitStatus为SIGNAL。
+之前我们提到了在独占锁中，只涉及到了CANCELLED和SIGNAL状态。
+CANCELLED状态表示Node所代表的当前线程已经取消了排队。
+SIGNAL状态不代表当前节点的状态，而是当前节点的下一个节点的状态，他是被后继节点设置的。当一个节点的waitStatus被置为SIGNAL，就说明它的后继节点已经被挂起了，因此在当前节点释放了锁或者放弃获取锁时，如果它的waitStatus属性为SIGNAL，它需要唤醒它的后继节点。
+
+```
+private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+    int ws = pred.waitStatus; // 获得前驱节点的ws
+    if (ws == Node.SIGNAL)
+        // 前驱节点的状态已经是SIGNAL了，说明闹钟已经设了，可以直接睡了
+        return true;
+    if (ws > 0) {
+        // 当前节点的 ws > 0, 则为 Node.CANCELLED 说明前驱节点已经取消了等待锁(由于超时或者中断等原因)
+        // 既然前驱节点不等了, 那就继续往前找, 直到找到一个还在等待锁的节点
+        // 然后我们跨过这些不等待锁的节点, 直接排在等待锁的节点的后面 (是不是很开心!!!)
+        do {
+            node.prev = pred = pred.prev;
+        } while (pred.waitStatus > 0);
+        pred.next = node;
+    } else {
+        // 前驱节点的状态既不是SIGNAL，也不是CANCELLED
+        // 用CAS设置前驱节点的ws为 Node.SIGNAL，给自己定一个闹钟
+        compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
+    }
+    return false;
+}
+```
 
 
 
