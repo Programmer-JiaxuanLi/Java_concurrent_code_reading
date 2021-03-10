@@ -12,7 +12,7 @@
 本文参考的文章和博客链接有，如有侵权，请联系我删除：
 
 1. ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789 https://segmentfault.com/a/1190000016058789。
-2. 美团技术团队 家琪：不可不说的Java“锁”事 https://tech.meituan.com/2018/11/15/java-lock.html
+2. 美团技术团队 家琪：不可不说的Java“锁”事：https://tech.meituan.com/2018/11/15/java-lock.html
 
 
 <h2>Reentrantlock</h2>
