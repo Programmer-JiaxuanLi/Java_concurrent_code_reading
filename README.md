@@ -1,7 +1,5 @@
 # <h1 align="center">Java多线程源码阅读及思考</h1>
-<a href="#head">`点这里从头再读一遍`</a>
- 
- 
+
  <p align="center">
  <img src="https://img.shields.io/badge/java-source-red"/>
  <img src="https://img.shields.io/badge/java-concurrent-green"/>
@@ -19,13 +17,28 @@
 
 <h2>Reentrantlock</h2>
 
-<a id="head"/>
+<h2>目录</h2>
+
+<a href="#1">1. 核心变量</a>  
+
+<a href="#2">2. 构造函数</a>  
+
+<a href="#3">3. 锁的获取</a>  
+
+&nbsp;&nbsp;&nbsp;<a href="#3.1">3.1 tryAcquire(arg)函数</a>  
+
+&nbsp;&nbsp;&nbsp;<a href="#3.2">3.2 addWaiter(Node mode)函数</a>  
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3.2.1">3.2.1尾分叉</a>  
 
 
+
+<a id="1"/>
 <h3>1 核心变量</h3>
 private final Sync sync;
 ReentrantLock只有个sync属性，这个属性提供了所有的实现，我们上面介绍ReentrantLock对Lock接口的实现的时候就说到，它对所有的Lock方法的实现都调用了sync的方法，这个sync就是ReentrantLock的属性，它继承了AQS.
 
+<a id="2"/>
 <h3>2 构造函数</h3>
 
  ```
@@ -39,6 +52,8 @@ public ReentrantLock(boolean fair) {
 
 **含参构造函数用于指定是否为公平锁，无参默认为启用非公平锁**。公平锁的优点在于等待锁的线程不会饿死，缺点是整体吞吐率相对非公平锁比较低，等待队列中除了第一个线程都会被阻塞，CPU唤醒阻塞线程的开销比非公平锁大。非公平锁是多个线程加锁时直接尝试获取锁，获取不到才会到等待队列的队尾等待。但如果此时锁刚好可用，那么这个线程可以无需阻塞直接获取到锁，所以非公平锁可以减少唤起线程的开销，整体的吞吐效率高。
 
+
+<a id="3"/>
 <h3>3 锁的获取</h3>
 
 我们先以公平锁为例，来分析锁的获取
@@ -65,6 +80,8 @@ public final void acquire(int arg) {
 （3）acquireQueued(final Node node, int arg)（在进入等待队列后，假如前驱节点是head，就继续尝试获取锁，否则就挂起）
 （4）selfInterrupt（假如抢锁过程中发生了中断，不响应，在退出acquire方法之前自我中断一下，即将中断推迟到抢锁结束后）
 
+
+<a id="3.1"/>
 <h3>3.1 tryAcquire(arg)函数</h3>
 
 tryAcquire(arg)函数的主要逻辑是：
@@ -111,6 +128,7 @@ protected final boolean tryAcquire(int acquires) {
 其实获取锁中的核心方法就是通过 compareAndSetState(0, acquires) 将锁的state状态改写，因为是cas操作，因此可以保证只有一个线程能成功，成功之后，再将
 拥有锁的线程改写为当前线程。对于可重入锁，则对比获取锁的线程是不是当前线程，是就直接获取。
 
+<a id="3.2"/>
 <h3>3.2 addWaiter(Node mode)函数</h3>
 
 执行到此方法, 尝试获取锁失败, 就要将当前线程包装成Node，加到等待锁的队列中去, 因为是FIFO队列, 所以要加在队尾。
@@ -159,7 +177,7 @@ private Node enq(final Node node) {
 ```
 假如队列为空，我们需要先新建一个头节点，然后进入下一轮循环。在下一轮循环中，队列已经不为null了，此时才可以再将我们包装了当前线程的Node加到这个空节点后面。**此处要注意，头节点并没有储存线程信息，不代表如何线程**
 
-
+<a id="3.2.1"/>
 <h3>3.2.1 尾分叉</h3>
 **在将节点储存到队列中时，会有一个很有趣的现象，叫做尾分叉，理解尾分叉是看懂遍历等待队列的关键**
 队列不空时，将节点加入队列有三步：
