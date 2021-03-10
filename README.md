@@ -38,7 +38,7 @@
 <h3>1 核心变量</h3>
 private final Sync sync;  
 
-ReentrantLock只有个sync属性，这个属性提供了所有的实现，我们上面介绍ReentrantLock对Lock接口的实现的时候就说到，它对所有的Lock方法的实现都调用了sync的方法，这个sync就是ReentrantLock的属性，它继承了AQS.
+ReentrantLock只有个sync属性，这个属性提供了所有的实现，我们上面介绍ReentrantLock对Lock接口的实现的时候就说到，它对所有的Lock方法的实现都调用了sync的方法，sync继承自AQS.
 
 <h3>2 构造函数</h3>
 
