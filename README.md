@@ -11,7 +11,7 @@
 <p>本文主要用于对Java并发知识的学习整理，以便于之后的复习，含有个人理解，如有错误，希望您能给予指正，以便于修改。</p>
 本文参考的文章和博客链接有，如有侵权，请联系我删除：
 
-1. [ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789](https://segmentfault.com/a/1190000016058789)。
+1. ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789 https://segmentfault.com/a/1190000016058789。
 2. 美团技术团队 家琪：不可不说的Java“锁”事 https://tech.meituan.com/2018/11/15/java-lock.html
 
 
