@@ -1,4 +1,5 @@
 # <h1 align="center">Java多线程源码阅读及思考</h1>
+<a href="#head">`点这里从头再读一遍`</a>
  
  
  <p align="center">
@@ -17,6 +18,8 @@
 
 
 <h2>Reentrantlock</h2>
+
+<a id="head"/>
 
 
 <h3>1 核心变量</h3>
