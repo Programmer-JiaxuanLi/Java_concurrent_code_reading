@@ -32,6 +32,10 @@
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3.2.1">3.2.1尾分叉</a>  
 
+&nbsp;&nbsp;&nbsp;<a href="#3.3">3.3  acquireQueued(final Node node, int arg)函数</a>  
+<a id="1"/>
+
+
 
 <a id="2"/>
 
@@ -180,7 +184,7 @@ private Node enq(final Node node) {
 ```
 <a id="3.2.1"/>
 
-假如队列为空，我们需要先新建一个头节点，然后进入下一轮循环。在下一轮循环中，队列已经不为null了，此时才可以再将我们包装了当前线程的Node加到这个空节点后面。**此处要注意，头节点并没有储存线程信息，不代表如何线程**
+假如队列为空，我们需要先新建一个头节点，然后进入下一轮循环。在下一轮循环中，队列已经不为null了，此时才可以再将我们包装了当前线程的Node加到这个空节点后面。**此处要注意，头节点并没有储存线程信息，头节点的相关线程已经获得了同步状态，在执行相应的业务逻辑了*
 
 
 <h3>3.2.1 尾分叉</h3>
@@ -215,6 +219,7 @@ private Node enq(final Node node) {
 **在第二步发生时，第三步可能还没发生，但是，CAS已经操作成功（第二步发生），竞争已经结束，但此时原来旧的尾节点的next值可能还是null（第三步还没有发生），假如有一个线程从前向后遍历这个队列就会漏掉这个新插入的节点，这明显不合理，但是tail已经成功修改，tail的前置节点也已经修改成功（第一步发生）从后向前遍历就可以遍历到所有节点**
 
 例如在后面的unparkSuccessor(Node node)方法中
+<a id="3.3"/>
 ```
 private void unparkSuccessor(Node node) {
 ...
@@ -231,10 +236,52 @@ private void unparkSuccessor(Node node) {
 ...
 }
 ```
+最后，addWaiter(Node.EXCLUSIVE)方法最终返回了代表了当前线程的Node节点。
 
+<h3>3.3 acquireQueued(final Node node, int arg)函数</h3>
 
+acquireQueued的基本逻辑是；
+(1) addWaiter 方法已经成功将包装了当前Thread的节点添加到了等待队列
+(2) 该方法中将再次尝试去获取锁
+(3) 在再次尝试获取锁失败后, 判断是否需要把当前线程挂起
 
+**为什么前面已经获取锁失败了此处还要再一次获取锁呢?**首先我们需要理解这里获取锁是基于一定条件的：当前节点的前驱节点就是HEAD节点，我们之前说过，head节点不储存任何任何线程信息，或者他代表了持有锁的线程，如果当前节点的前驱节点是head说明当前节点已经是等待队列里的第一个节点。
 
+```
+final boolean acquireQueued(final Node node, int arg) {
+    boolean failed = true;
+    try {
+        boolean interrupted = false;
+        for (;;) {
+            final Node p = node.predecessor();
+            // 在当前节点的前驱就是HEAD节点时, 再次尝试获取锁
+            if (p == head && tryAcquire(arg)) {
+                setHead(node);
+                p.next = null; // help GC
+                failed = false;
+                return interrupted;
+            }
+            //在获取锁失败后, 判断是否需要把当前线程挂起
+            if (shouldParkAfterFailedAcquire(p, node) && parkAndCheckInterrupt())
+                interrupted = true;
+        }
+    } finally {
+        if (failed)
+            cancelAcquire(node);
+    }
+}
+```
+假如前驱节点是头节点，而且获取锁成功了，就会调用setHead()函数：
+```
+private void setHead(Node node) {
+    head = node;
+    node.thread = null;
+    node.prev = null;
+}
+```
+**从这段代码，我们可以很清楚的看到，一个节点在成为头节点之后，就会清除它储存的线程信息。这相当于一种变相的出队操作，其实等待队列指的是该队列里除head以外的节点，这里的setHead也不需要进行CAS操作，因为tryAcquire(arg)获取锁成功之后才会执行if里面的代码**
+
+若获取锁失败
 
 
 
