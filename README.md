@@ -170,10 +170,12 @@ private Node enq(final Node node) {
 3.修改原来的尾节点，使它的next指向当前节点
 
 ![image](https://user-images.githubusercontent.com/79728538/110553394-849f1a00-80fe-11eb-9523-05833ef53b9c.png)
+图片来自https://segmentfault.com/a/1190000016058789
 
 这三步不是原子操作，第二步是一个CAS操作，多线程环境下，只有一个线程能够成功修改tail，第二步和第三步是原子的，第二步发生后第三步才会发生.其他所有线程只能发生第一步，因此就会出现尾分叉现象：
 
 ![image](https://user-images.githubusercontent.com/79728538/110553778-24f53e80-80ff-11eb-8917-8a66be296736.png)
+图片来自https://segmentfault.com/a/1190000016058789
 
 **在第二步发生时，第三步可能还没发生，但是，CAS已经操作成功，竞争已经结束，但此时原来旧的尾节点的next值可能还是null，假如有一个线程从前向后遍历这个队列就会漏掉这个尾节点，这明显不合理，但是tail已经成功修改，tail的前置节点也已经修改成功（第一步）从后向前遍历就可以遍历到所有节点**
 
