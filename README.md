@@ -46,6 +46,11 @@
 
 <a href="#5">5. 锁的释放</a>  
 
+&nbsp;&nbsp;&nbsp; <a href="#5.1">5.1 tryRelease(arg)函数</a>
+
+&nbsp;&nbsp;&nbsp; <a href="#5.2">5.2 unparkSuccessor(Node node)函数</a>
+
+
 <a id="2"/>
 
 <h2>独占锁</h3>
@@ -438,7 +443,7 @@ protected final boolean tryRelease(int releases) {
 <a id="5.2"/>
 因为只有获取了锁的线程才会执行释放锁的逻辑，而且此处的代码还是独占锁，所以并不需要CAS操作。
 
-<h3>5.2 unparkSuccessor(h)函数</h3>
+<h3>5.2 unparkSuccessor(Node node)函数</h3>
 
 unparkSuccessor(h)用于唤醒后继线程，此处我们可以看到对head节点的waitStatus的判断，之前我们在获取锁失败进入队列失败时讲过，**如果一个线程被挂起了, 它的前驱节点的 waitStatus值必然是Node.SIGNAL.**
 
@@ -481,7 +486,7 @@ private void unparkSuccessor(Node node) {
         LockSupport.unpark(s.thread);
 }
 ```
-**此处我们可以看到从尾节点向前遍历的方式，在**<a href="#3.2.1">尾分叉</a> **里我们已经讲过其中原理里了**。
+**此处我们可以看到从尾节点向前遍历的方式，在**<a href="#3.2.1">尾分叉</a> **里我们已经讲过其中原理了**。
 在释放锁之后，一个等待中的线程就会从之前，讲过的parkAndCheckInterrupt()函数中的挂起处被唤醒，然后继续执行。
 ```
 private final boolean parkAndCheckInterrupt() {
