@@ -20,6 +20,9 @@
 
 <h2>目录</h2>
 
+
+<a href="#0">独占锁</a>  
+
 <a href="#1">1. 核心变量</a>  
 
 <a href="#2">2. 构造函数</a>  
@@ -39,10 +42,12 @@
 <a id="1"/>
 
 &nbsp;&nbsp;&nbsp;<a href="#4.4">4.4  selfInterrupt()函数</a>  
-
+<a id="0"/>
 <a href="#5">5. 锁的释放</a>  
 
 <a id="2"/>
+
+<h2>独占锁</h3>
 
 <h3>1 核心变量</h3>
 private final Sync sync;  
@@ -383,8 +388,68 @@ try {
 ```
 **此处一定要注意lock.unlock()一定要在finally里面，而lock.lock()要在try之外，因为假如lock.lock()在try之内，在获取锁的过程中，如果抛出异常，没有获取锁成功，还是会调用释放锁。**
 
-下面
+下面我们来阅读独占锁，ReentrantLock的源码，**因为锁的释放操作，对于公平锁和非公平锁是一样的，所以释放锁的逻辑没有放在FairSync 或 NonfairSync 里面， 而是直接定义在 sync类中。**
 
+```
+public void unlock() {
+    sync.release(1);
+}
+```
+<a id="5.1"/>
+```
+public final boolean release(int arg) {
+    if (tryRelease(arg)) {
+        Node h = head;
+        if (h != null && h.waitStatus != 0)
+            unparkSuccessor(h);
+        return true;
+    }
+    return false;
+}
+```
+可以看到在这个方法中，主要涉及到两个子函数的调用tryRelease(arg)，和unparkSuccessor(h)函数，下面我们逐行分析这两个函数的源码。
+
+
+<h3>5.1 tryRelease(arg)函数</h3>
+
+```
+protected final boolean tryRelease(int releases) {
+    
+    // 首先将当前持有锁的线程个数减1(回溯到调用源头sync.release(1)可知, releases的值为1)
+    // 这里的操作主要是针对可重入锁的情况下, c可能大于1
+    int c = getState() - releases; 
+    
+    // 释放锁的线程当前必须是持有锁的线程
+    if (Thread.currentThread() != getExclusiveOwnerThread())
+        throw new IllegalMonitorStateException();
+    
+    // 如果c为0了, 说明锁已经完全释放了
+    boolean free = false;
+    if (c == 0) {
+        free = true;
+        setExclusiveOwnerThread(null);
+    }
+    setState(c);
+    return free;
+}
+```
+
+因为获取了锁
+
+<h3>5.2 tryRelease(arg)函数</h3>
+
+```
+unparkSuccessor
+public final boolean release(int arg) {
+    if (tryRelease(arg)) {
+        Node h = head;
+        if (h != null && h.waitStatus != 0)
+            unparkSuccessor(h);
+        return true;
+    }
+    return false;
+}
+```
 
 
 
