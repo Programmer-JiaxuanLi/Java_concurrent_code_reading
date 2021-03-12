@@ -43,6 +43,7 @@
 
 &nbsp;&nbsp;&nbsp;<a href="#4.4">4.4  selfInterrupt()函数</a>  
 <a id="0"/>
+
 <a href="#5">5. 锁的释放</a>  
 
 <a id="2"/>
@@ -434,12 +435,14 @@ protected final boolean tryRelease(int releases) {
 }
 ```
 
-因为获取了锁
+<a id="5.2"/>
+因为只有获取了锁的线程才会执行释放锁的逻辑，而且此处的代码还是独占锁，所以并不需要CAS操作。
 
-<h3>5.2 tryRelease(arg)函数</h3>
+<h3>5.2 unparkSuccessor(h)函数</h3>
+
+unparkSuccessor(h)用于唤醒后继线程，此处我们可以看到对head节点的waitStatus的判断，之前我们在获取锁失败进入队列失败时讲过，**如果一个线程被挂起了, 它的前驱节点的 waitStatus值必然是Node.SIGNAL.**
 
 ```
-unparkSuccessor
 public final boolean release(int arg) {
     if (tryRelease(arg)) {
         Node h = head;
@@ -450,6 +453,44 @@ public final boolean release(int arg) {
     return false;
 }
 ```
+**此处为什么要判断h.waitStatus != 0呢**
+
+等待队列节点的waitstatus初始值为0，但是从shouldParkAfterFailedAcquire 函数中可以了解到，只要有一个新的节点入队，就会将前驱节点的waitStatus设为Node.SIGNAL。所以当一个head节点的waitStatus为0, 说明这个head节点后面没有在挂起等待中的后继节点了(如果有的话, head的ws就会被后继节点设为Node.SIGNAL了), 自然也就不要执行 unparkSuccessor 操作了.
+
+接下来就是唤醒后继线程的函数，在释放锁成功之后就需要加入CAS操作了：
+
+```
+private void unparkSuccessor(Node node) {
+    int ws = node.waitStatus;
+    
+    // 如果head节点的ws比0小, 则直接将它设为0
+    if (ws < 0)
+        compareAndSetWaitStatus(node, ws, 0);
+
+    // 通常情况下, 要唤醒的就是自己的后继节点，如果后继节点在等待锁, 那就直接唤醒它
+    // 但是后继节点可能已经取消等待锁，此时就需要从尾节点开始向前找起, 直到找到距离head节点最近等待锁的节点(ws<=0)
+    Node s = node.next;
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        for (Node t = tail; t != null && t != node; t = t.prev)
+            if (t.waitStatus <= 0)
+                s = t; // 注意! 这里找到了之并有return, 而是继续向前找
+    }
+    // 如果找到了还在等待锁的节点，则唤醒它
+    if (s != null)
+        LockSupport.unpark(s.thread);
+}
+```
+**此处我们可以看到从尾节点向前遍历的方式，在**<a href="#3.2.1">尾分叉</a> **里我们已经讲过其中原理里了**。
+在释放锁之后，一个等待中的线程就会从之前，讲过的parkAndCheckInterrupt()函数中的挂起处被唤醒，然后继续执行。
+```
+private final boolean parkAndCheckInterrupt() {
+    LockSupport.park(this); // 在这里被挂起了, 唤醒之后就能继续往下执行了
+    return Thread.interrupted();
+}
+```
+
+
 
 
 
