@@ -40,6 +40,8 @@
 
 &nbsp;&nbsp;&nbsp;<a href="#4.4">4.4  selfInterrupt()函数</a>  
 
+<a href="#5">5. 锁的释放</a>  
+
 <a id="2"/>
 
 <h3>1 核心变量</h3>
@@ -359,7 +361,29 @@ private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
 <a id="4.4"/>
 <h3>4.4 selfInterrupt()函数</h3>
 
+<a id="5"/>
+
 该方法由AQS实现, 用于中断当前线程。在整个抢锁过程中，都是不响应中断的。假如在抢锁的过程中发生了中断, AQS会记录有没有有发生过中断，如果返回的时候发现在抢锁过程中曾经发生过中断，则在退出acquire方法之前，调用selfInterrupt自我中断一下，将这个发生在抢锁过程中的中断“推迟”到抢锁结束以后再发生。
+
+<h3>5. 锁的释放</h3>
+
+JAVA的内置锁在退出临界区之后是会自动释放锁的, 但是显式锁是需要自己显式的释放的, 所以在加锁之后一定不要忘记在finally块中进行显式的锁释放:
+
+```
+Lock lock = new ReentrantLock();
+...
+lock.lock();
+try {
+    // 更新对象
+    //捕获异常
+} finally {
+    lock.unlock();
+}
+
+```
+**此处一定要注意lock.unlock()一定要在finally里面，而lock.lock()要在try之外，因为假如lock.lock()在try之内，在获取锁的过程中，如果抛出异常，没有获取锁成功，还是会调用释放锁。**
+
+下面
 
 
 
