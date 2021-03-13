@@ -487,7 +487,7 @@ private void unparkSuccessor(Node node) {
 }
 ```
 **此处我们可以看到从尾节点向前遍历的方式，在**<a href="#3.2.1">尾分叉</a> **里我们已经讲过其中原理了**。
-在释放锁之后，一个等待中的线程就会从之前，讲过的parkAndCheckInterrupt()函数中的挂起处被唤醒，然后继续执行。
+在释放锁之后，一个等待中的线程就会从之前讲过的parkAndCheckInterrupt()函数中的挂起处被唤醒，然后继续执行。
 ```
 private final boolean parkAndCheckInterrupt() {
     LockSupport.park(this); // 在这里被挂起了, 唤醒之后就能继续往下执行了
