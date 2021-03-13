@@ -11,11 +11,11 @@
 <p>本文主要用于对Java并发知识的学习整理，以便于之后的复习，含有个人理解，如有错误，希望您能给予指正，以便于修改。</p>
 本文主要基于ChiuCheng 个人博客 (https://segmentfault.com/a/1190000016058789) 学习，理解之后又自行整理。
 
-<h2>Reentrantlock</h2>
-
 <h2>目录</h2>
 
 <a href="#0">独占锁</a>  
+
+<a href="#0">Reentrantlock</a>  
 
 <a href="#1">1. 核心变量</a>  
 
@@ -49,6 +49,8 @@
 <a id="2"/>
 
 <h2>独占锁</h3>
+
+<h2>Reentrantlock</h2>
 
 <h3>1 核心变量</h3>
 private final Sync sync;  
