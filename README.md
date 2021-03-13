@@ -10,16 +10,10 @@
 <h2 align="center">前言</h2>
 <p>本文主要用于对Java并发知识的学习整理，以便于之后的复习，含有个人理解，如有错误，希望您能给予指正，以便于修改。</p>
 本文主要基于ChiuCheng 个人博客 (https://segmentfault.com/a/1190000016058789) 学习，理解之后又自行整理。
-此外，本文参考有以下博客，有如有侵权，请联系我删除：
-
-1. ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789。
-2. 美团技术团队 家琪：不可不说的Java“锁”事：https://tech.meituan.com/2018/11/15/java-lock.html
-
 
 <h2>Reentrantlock</h2>
 
 <h2>目录</h2>
-
 
 <a href="#0">独占锁</a>  
 
@@ -50,6 +44,7 @@
 
 &nbsp;&nbsp;&nbsp; <a href="#5.2">5.2 unparkSuccessor(Node node)函数</a>
 
+<a href="#100">参考</a>
 
 <a id="2"/>
 
@@ -494,6 +489,14 @@ private final boolean parkAndCheckInterrupt() {
     return Thread.interrupted();
 }
 ```
+
+<a id="100"/>
+<h2>参考</h2>
+
+本文参考有以下博客，有如有侵权，请联系我删除：
+
+1. ChiuCheng 个人博客：https://segmentfault.com/a/1190000016058789。
+2. 美团技术团队 家琪：不可不说的Java“锁”事：https://tech.meituan.com/2018/11/15/java-lock.html
 
 
 
