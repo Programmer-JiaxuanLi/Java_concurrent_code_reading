@@ -6,11 +6,6 @@
  <img src="https://img.shields.io/badge/Java-Self--study-blue"/>
 </p>
  
-
-<h2 align="center">前言</h2>
-<p>本文主要用于对Java并发知识的学习整理，以便于之后的复习，含有个人理解，如有错误，希望您能给予指正，以便于修改。</p>
-本文主要基于ChiuCheng 个人博客 (https://segmentfault.com/a/1190000016058789) 学习，理解之后又自行整理。
-
 <h2>目录</h2>
 
 <a href="#0">独占锁</a>  
